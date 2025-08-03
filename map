@@ -26,4 +26,53 @@ ggplot() +
     legend.position = 'none',
     plot.title = element_text(hjust = 0.5, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5)
-  ) + theme(legend.position = 'none')
+  ) + theme(legend.position = 'none'); ggsave('casino_map.png', height = 5, width = 5)
+################################# dynamic html map
+library(leaflet); library(sf); library(tigris); library(dplyr)
+arkansas_counties = counties(state = "AR", class = "sf")
+casino_locations = data.frame(
+  city = c("Hot Springs", "Pine Bluff", "West Memphis"),
+  latitude = c(34.5034, 34.2281, 35.1481),
+  longitude = c(-93.0552, -92.0035, -90.1862),
+  county = c("Garland", "Jefferson", "Crittenden")
+)
+arkansas_counties = arkansas_counties %>% mutate(has_casino = NAME %in% casino_locations$county)
+county_colors = colorFactor(palette = c("white", "darkgrey"), domain = arkansas_counties$has_casino)
+m = leaflet(options = leafletOptions(minZoom = 7)) %>%
+  setView(lng = -92.2896, lat = 34.7465, zoom = 7) %>%
+  addProviderTiles(providers$CartoDB.Positron)
+m = m %>%
+  addPolygons(
+    data = arkansas_counties,
+    fillColor = ~county_colors(has_casino),
+    fillOpacity = 0.5,
+    color = "black",
+    weight = 1,
+    popup = paste0("<b>", arkansas_counties$NAME, " County</b><br>",
+                   "Casino: ", ifelse(arkansas_counties$has_casino, "Yes", "No"))
+  )
+m = m %>%
+  addCircles(
+    data = casino_locations,
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 2000, # A fixed radius for the dot size (in meters)
+    weight = 2,    # Line weight of the circle
+    color = "black", # Border color of the circle
+    fillColor = "red", # Fill color of the circle
+    fillOpacity = 0.8, # Opacity of the fill
+    popup = ~paste0("<b>", city, "</b><br>Casino in ", county, " County"),
+    # Add a label for the city name
+    label = ~city,
+    # Customize the label to be visible and in black
+    labelOptions = labelOptions(
+      noHide = TRUE, # Always show the label
+      direction = 'top',
+      textsize = "12px",
+      style = list(
+        'color' = 'black',
+        'font-weight' = 'bold'
+      )
+    )
+  )
+m; class(m)
