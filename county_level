@@ -124,6 +124,21 @@ county = function(treated, exclude, time, period, sig.ipop, placebo) {
 hs = county('Garland', c('Jefferson', 'Crittenden'), 2019, 2012:2018, 5, T)
 wm = county('Crittenden', c('Jefferson', 'Garland'), 2019, 2012:2018, 5, F)
 pb = county('Jefferson', c('Garland', 'Crittenden'), 2020, 2012:2019, 5, F)
+# HS magnitude
+effect = function (data, time_window = NULL) {
+  if (!(".meta" %in% colnames(data))) {
+    stop("`.meta` column has been removed. `.meta` column needs to be included for `generte_control()` to work.")
+  }
+  trt_time <- data$.meta[[1]]$treatment_time[1]
+  time_index <- data$.meta[[1]]$time_index[1]
+  outcome_name <- data$.meta[[1]]$outcome[1]
+  if (is.null(time_window)) {
+    time_window <- unique(data$.original_data[[1]][[time_index]])
+  }
+  data %>% grab_synthetic_control(placebo = FALSE) %>% filter(time_unit %in% time_window) %>%
+    rename(Synthetic = synth_y,  treated = real_y, year = time_unit) %>% mutate(effect = treated - Synthetic) 
+}
+effect(hs)
 # customzing plot_trends
 plot_custom = function (data, time_window = NULL, title) {
   if (!(".meta" %in% colnames(data))) {
@@ -135,8 +150,8 @@ plot_custom = function (data, time_window = NULL, title) {
   if (is.null(time_window)) {
     time_window <- unique(data$.original_data[[1]][[time_index]])
   }
-  data %>% grab_synthetic_control(placebo = FALSE) %>% dplyr::filter(time_unit %in% time_window) %>%
-    dplyr::rename(Synthetic = synth_y,  treated = real_y, year = time_unit) %>%  
+  data %>% grab_synthetic_control(placebo = FALSE) %>% filter(time_unit %in% time_window) %>%
+    rename(Synthetic = synth_y,  treated = real_y, year = time_unit) %>%  
     ggplot() + ggtitle(title) +
     geom_vline(xintercept = trt_time, color = "black") +
     scale_y_continuous(name = "", expand=c(0,0), limits = c(0, 251000)) + 
@@ -148,17 +163,20 @@ p1 = hs %>% plot_custom(title = 'Garland County') +
   geom_line(data = ar, linetype = 'dotted', aes(x = year, y = housing, color = 'Arkansas'), linewidth = 1)+
   geom_line(aes(x=year, y = Synthetic, color = 'Synthetic Garland'), linewidth = 1) + 
   geom_line(aes(x=year, y = treated, color = 'Garland'), linewidth = 1) +
-  scale_color_manual(values = c('Garland' = 'black', 'Synthetic Garland' = 'darkgrey', 'Arkansas' = 'black'));p1
+  scale_color_manual(values = c('Garland' = 'black', 'Synthetic Garland' = 'darkgrey', 'Arkansas' = 'black'),
+                     breaks = c('Garland', 'Synthetic Garland', 'Arkansas'));p1
 p2 = pb %>% plot_custom(title = 'Jefferson County') + 
   geom_line(data = ar, linetype = 'dotted', aes(x = year, y = housing, color = 'Arkansas'), linewidth = 1)+
   geom_line(aes(x=year, y = Synthetic, color = 'Synthetic Jefferson'), linewidth = 1) + 
   geom_line(aes(x=year, y = treated, color = 'Jefferson'), linewidth = 1) +
-  scale_color_manual(values = c('Jefferson' = 'black', 'Synthetic Jefferson' = 'darkgrey', 'Arkansas' = 'black'));p2
+  scale_color_manual(values = c('Jefferson' = 'black', 'Synthetic Jefferson' = 'darkgrey', 'Arkansas' = 'black'),
+                     breaks = c('Jefferson', 'Synthetic Jefferson', 'Arkansas'));p2
 p3 = wm %>% plot_custom(title = 'Crittenden County') + 
   geom_line(data = ar, linetype = 'dotted', aes(x = year, y = housing, color = 'Arkansas'), linewidth = 1)+
   geom_line(aes(x=year, y = Synthetic, color = 'Synthetic Crittenden'), linewidth = 1) + 
   geom_line(aes(x=year, y = treated, color = 'Crittenden'), linewidth = 1) +
-  scale_color_manual(values = c('Crittenden' = 'black', 'Synthetic Crittenden' = 'darkgrey', 'Arkansas' = 'black'));p3
+  scale_color_manual(values = c('Crittenden' = 'black', 'Synthetic Crittenden' = 'darkgrey', 'Arkansas' = 'black'),
+                     breaks = c('Crittenden', 'Synthetic Crittenden', 'Arkansas'));p3
 p = p1/p2/p3
 ggsave(plot = p, filename = 'plot_county.png', width = 8, height=13)
 # custome_ratio
@@ -169,8 +187,8 @@ ratio_custom = function (data, time_window = NULL) {
     ggplot(aes(unit_name, mspe_ratio, fill = type)) + geom_col() + 
     coord_flip() + ggplot2::labs(y = "Post-Period MSPE / Pre-Period MSPE", 
                                  x = "", fill = "", color = "") + 
-    scale_fill_manual(values = c("grey50", "black")) + 
-    scale_color_manual(values = c("grey50", "black")) + 
+    scale_fill_manual(values = c("grey", "black")) + 
+    scale_color_manual(values = c("grey", "black")) + 
     scale_y_continuous(expand = c(0, 0)) +
     theme(panel.grid.major = element_line(colour = "gray80") ,
           panel.grid.minor = element_line(colour = "gray90"), 
